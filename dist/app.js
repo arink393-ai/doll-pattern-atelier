@@ -2,16 +2,19 @@
 const defs=[['bust','胸圍',14,'繞胸部最寬一圈',1,100],['waist','腰圍',12,'腰部水平繞一圈',1,100],['neck','頸圍',6,'脖子根部繞一圈',1,60],['shoulder','肩寬',5,'兩肩端水平距離',1,40],['back','背長',7,'後頸根至腰線',1,60],['depth','腋深',3,'後頸根水平至腋下',.5,40]];
 const designDefs=[['length','衣長',8,'後頸根至下襬',1,80],['ease','胸腰鬆量',1,'胸、腰各加的整圈量',0,20],['neckEase','領口鬆量',.4,'領圍整圈增加量',0,10],['drop','落肩高度',.5,'肩端低於側頸點',0,8]];
 const seamDefs=[['seam','縫份寬度',.5,'0–2 cm，整圈均一縫份',0,2]];
-const allDefs=[...defs,...designDefs,...seamDefs];
+let allDefs=[...defs,...designDefs,...seamDefs];
+let garment="top";
+const draftMemory={};
+const topNote="無袖・後中心全開・不設胸褶。直身寬度取胸、腰較大值再加鬆量；後開口搭份與貼邊另加。";
 function renderFields(items,id){document.getElementById(id).innerHTML=items.map(([key,label,value,hint,min,max])=>`<label for="${key}">${label}<input id="${key}" name="${key}" type="number" inputmode="decimal" min="${min}" max="${max}" step="0.1" value="${value}" required aria-describedby="${key}-hint"><small id="${key}-hint">${hint}</small></label>`).join('');}
 renderFields(defs,'fields');renderFields(designDefs,'designFields');renderFields(seamDefs,'seamFields');
 const $=id=>document.getElementById(id);let exportSvg='';let state=null;const f=n=>n.toFixed(2);
 // Numerical length of a quarter ellipse. Front/back neckline arcs together
 // are scaled to the measured neck circumference plus the chosen ease.
 function arc(a,b){let sum=0;const steps=240;for(let i=0;i<steps;i++){const t=(i+.5)*Math.PI/(2*steps);sum+=Math.hypot(a*Math.sin(t),b*Math.cos(t))*Math.PI/(2*steps);}return sum;}
-function validate(v){for(const [key,label,,hint,min,max] of allDefs){if(!Number.isFinite(v[key])||v[key]<min||v[key]>max)throw new Error(`${label}請輸入 ${min}–${max} cm 的數字。`);}if(v.waist>v.bust*1.5)throw new Error('此無胸褶試版不適用腰圍超過胸圍 1.5 倍的身形。');if(v.depth>=v.back)throw new Error('腋深必須小於背長，請確認量測起點。');if(v.length<=v.depth)throw new Error('衣長必須大於腋深，才有完整衣身。');const nw=(v.neck+v.neckEase)/(2*(arc(1,1)+arc(1,.3)));
+function validate(v){if(garment!=='top'){DollPatterns.validate(garment,v);return;}for(const [key,label,,hint,min,max] of allDefs){if(!Number.isFinite(v[key])||v[key]<min||v[key]>max)throw new Error(`${label}請輸入 ${min}–${max} cm 的數字。`);}if(v.waist>v.bust*1.5)throw new Error('此無胸褶試版不適用腰圍超過胸圍 1.5 倍的身形。');if(v.depth>=v.back)throw new Error('腋深必須小於背長，請確認量測起點。');if(v.length<=v.depth)throw new Error('衣長必須大於腋深，才有完整衣身。');const nw=(v.neck+v.neckEase)/(2*(arc(1,1)+arc(1,.3)));
 if(nw>=v.shoulder/2-.1)throw new Error('領寬已接近肩端，請確認頸圍、肩寬或減少領口鬆量。');if(-nw*.3+v.drop>=v.depth-.2)throw new Error('肩端過低，請確認落肩高度或腋深。');if(nw*.7>=v.depth)throw new Error('領口深度已超過腋下，請確認頸圍及腋深。');if(v.shoulder/2>(v.bust+v.ease)/4)throw new Error('此簡化版需半肩寬不大於四分之一成衣胸圍；請重新量測或改用專門身形版。');return nw;}
-function generate(v,kind){const nw=validate(v),top=-nw*.3,sx=v.shoulder/2,sy=top+v.drop,w=(Math.max(v.bust,v.waist)+v.ease)/4,waist=(v.waist+v.ease)/4,hem=kind==='aline'?Math.max(w,waist)+v.length*.10:Math.max(w,waist);const gap=2.6+v.seam*2,margin=1.8+v.seam,pieceWidth=Math.max(w,hem,sx),offset=pieceWidth+gap,total=offset+pieceWidth+margin*2,height=v.length+4.7+nw*.3+v.seam*2;
+function generate(v,kind){if(garment!=='top')return DollPatterns.render(garment,v);const nw=validate(v),top=-nw*.3,sx=v.shoulder/2,sy=top+v.drop,w=(Math.max(v.bust,v.waist)+v.ease)/4,waist=(v.waist+v.ease)/4,hem=kind==='aline'?Math.max(w,waist)+v.length*.10:Math.max(w,waist);const gap=2.6+v.seam*2,margin=1.8+v.seam,pieceWidth=Math.max(w,hem,sx),offset=pieceWidth+gap,total=offset+pieceWidth+margin*2,height=v.length+4.7+nw*.3+v.seam*2;
 function piece(front,x){const start=front?nw+top:0;
 const neckPath=front?`M 0 ${start} A ${nw} ${nw} 0 0 0 ${nw} ${top}`:`M 0 0 A ${nw} ${-top} 0 0 0 ${nw} ${top}`;
 const path=`${neckPath} L ${sx} ${sy} C ${sx} ${sy+(v.depth-sy)*.6} ${Math.max(nw,sx-.35)} ${v.depth} ${w} ${v.depth} L ${hem} ${v.length} L 0 ${v.length} Z`;
@@ -21,8 +24,8 @@ s+=`<text x="${w*.48}" y="${v.depth+(v.length-v.depth)*.45}" text-anchor="middle
 let contents=`<title>娃娃無袖上衣實量試版，縫份 ${f(v.seam)} cm</title><desc>胸圍 ${v.bust}，頸圍 ${v.neck}，衣長 ${v.length} 公分。獨立簡化試版，非完整文化原型。後中心全開，需另加搭份與貼邊。</desc><g font-family="sans-serif">${piece(true,margin)}${piece(false,margin+offset)}<path d="M ${margin} ${height-1.4} h 2 m -2 -.1 v .2 m 2 -.2 v .2" fill="none" stroke="#18283f" stroke-width=".025"/><text x="${margin}" y="${height-.9}" font-size=".23" fill="#18283f">2 cm 校正線 · 列印選 100%，勿縮放</text><text x="${margin}" y="${height-.45}" font-size=".21" fill="#626f80">縫份 ${f(v.seam)} cm／布折不加。搭份與貼邊另加。先試胚再裁布。</text></g>`;
 return {svg:`<svg xmlns="http://www.w3.org/2000/svg" width="${total}cm" height="${height}cm" viewBox="0 0 ${total} ${height}" role="img" aria-label="前後片即時版型">${contents}</svg>`,chest:w*4,hem:hem*4,neck:v.neck+v.neckEase};}
 function read(){return Object.fromEntries(allDefs.map(([key])=>[key,$(key).value.trim()===''?NaN:Number($(key).value)]));}
-function update(){try{const v=read();const result=generate(v,$('silhouette').value);$('error').hidden=true;$('paper').innerHTML=result.svg;$('paper').style.opacity=1;addSeamAllowance(v.seam);exportSvg=$('paper').querySelector('svg').outerHTML;state=v;buildPrintSheets();$('download').disabled=false;$('printPreview').disabled=false;$('seamSummary').textContent=`縫份 ${f(v.seam)} cm，前中心布折線不加。搭份與貼邊另加。列印後先核對校正線，再做胚衣試穿。`;$('results').innerHTML=[['成衣胸圍',result.chest],['目標領口周長',result.neck],['下襬整圈',result.hem]].map(([t,n])=>`<div><small>${t}</small><b>${f(n)} <em>cm</em></b></div>`).join('');}catch(e){$('error').textContent=e.message;$('error').hidden=false;$('paper').innerHTML='<p class="muted">修正尺寸後，版型會重新顯示。</p>';$('results').innerHTML='';$('download').disabled=true;$('printPreview').disabled=true;exportSvg='';state=null;$('printSheets').innerHTML='<p>尺寸無效，請關閉列印並修正尺寸。</p>';$('seamSummary').textContent='請先修正尺寸。';}}
-$('measurements').addEventListener('input',update);$('measurements').addEventListener('submit',e=>e.preventDefault());$('reset').addEventListener('click',()=>{allDefs.forEach(([key,,val])=>$(key).value=val);$('silhouette').value='straight';update();});$('download').addEventListener('click',()=>{if(!exportSvg)return;const url=URL.createObjectURL(new Blob([exportSvg],{type:'image/svg+xml;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`小衣研究室-無袖上衣-縫份${state.seam}cm.svg`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);});
+function update(){try{const v=read();const result=generate(v,$('silhouette').value);$('error').hidden=true;$('error').textContent='';$('paper').innerHTML=result.svg;$('paper').style.opacity=1;addSeamAllowance(v.seam);exportSvg=$('paper').querySelector('svg').outerHTML;state=v;buildPrintSheets();$('download').disabled=false;$('printPreview').disabled=false;$('seamSummary').textContent=`縫份 ${f(v.seam)} cm，標示布折的邊不加。列印後先核對校正線，再做胚衣試穿。`;draftMemory[garment]={...v};$('results').innerHTML=(result.metrics||[['成衣胸圍',result.chest],['目標領口周長',result.neck],['下襬整圈',result.hem]]).map(([t,n])=>`<div><small>${t}</small><b>${f(n)} <em>cm</em></b></div>`).join('');}catch(e){$('error').textContent=e.message;$('error').hidden=false;$('paper').innerHTML='<p class="muted">修正尺寸後，版型會重新顯示。</p>';$('results').innerHTML='';$('download').disabled=true;$('printPreview').disabled=true;exportSvg='';state=null;$('printSheets').innerHTML='<p>尺寸無效，請關閉列印並修正尺寸。</p>';$('seamSummary').textContent='請先修正尺寸。';}}
+$('measurements').addEventListener('input',update);$('measurements').addEventListener('submit',e=>e.preventDefault());$('reset').addEventListener('click',()=>{allDefs.forEach(([key,,val])=>$(key).value=val);$('silhouette').value='straight';update();});$('download').addEventListener('click',()=>{if(!exportSvg)return;const url=URL.createObjectURL(new Blob([exportSvg],{type:'image/svg+xml;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`小衣研究室-${patternName()}-縫份${state.seam}cm.svg`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);});
 // Offset in pattern units (cm), never by scaling the garment. Integer clipping
 // removes self-intersections and clips the front allowance at the fabric fold.
 function addSeamAllowance(cm){
@@ -57,7 +60,7 @@ function buildPrintSheets(){
     const page=row*cols+col+1,tile=svg.cloneNode(true);
     tile.setAttribute('width','190mm');tile.setAttribute('height','250mm');tile.setAttribute('viewBox',`${col*18} ${row*24} 19 25`);
     tile.removeAttribute('role');tile.removeAttribute('aria-label');
-    sheets+=`<section class="print-sheet"><div class="print-header">小衣研究室 · 第 ${page} / ${total} 頁 · 第 ${row+1} 行／第 ${col+1} 列 · 縫份 ${f(state.seam)} cm</div><div class="print-tile">${tile.outerHTML}</div><div class="print-footer"><span class="calibration">5 cm 校正線</span><span>100% · 相鄰頁重疊 1 cm · 布折線不加縫份</span></div></section>`;
+    sheets+=`<section class="print-sheet"><div class="print-header">${patternName()} · 第 ${page} / ${total} 頁 · 第 ${row+1} 行／第 ${col+1} 列 · 縫份 ${f(state.seam)} cm</div><div class="print-tile">${tile.outerHTML}</div><div class="print-footer"><span class="calibration">5 cm 校正線</span><span>100% · 相鄰頁重疊 1 cm · 布折線不加縫份</span></div></section>`;
     map+=`<span>${row+1} 行 ${col+1} 列<small>第 ${page} 頁</small></span>`;
   }
   $('printSheets').innerHTML=sheets;$('tileMap').innerHTML=map;
@@ -66,7 +69,39 @@ $('printPreview').addEventListener('click',()=>{if(exportSvg){buildPrintSheets()
 $('closePrint').addEventListener('click',()=>$('printDialog').close());
 $('printNow').addEventListener('click',()=>{if(!exportSvg)return;$('printDialog').close();window.print();});
 window.addEventListener('beforeprint',()=>{if(exportSvg)buildPrintSheets();});
+function patternName(){return garment==='top'?'基本上衣':DollPatterns.registry[garment].title;}
+function chooseGarment(next){
+  garment=next;$('garment').value=next;
+  const cfg=DollPatterns.registry[next];allDefs=next==='top'?[...defs,...designDefs,...seamDefs]:[...cfg.fields,...cfg.design,...seamDefs];
+  renderFields(next==='top'?defs:cfg.fields,'fields');renderFields(next==='top'?designDefs:cfg.design,'designFields');renderFields(seamDefs,'seamFields');
+  if(draftMemory[next])allDefs.forEach(([k])=>$(k).value=draftMemory[next][k]);
+  $('topOptions').hidden=next!=='top';$('useArmhole').hidden=next!=='sleeve';$('patternTitle').textContent=patternName();$('patternNote').textContent=next==='top'?topNote:cfg.note;
+  const steps=next==='top'?['前片對折裁一片，後片鏡像裁兩片；先接合肩線與側縫。','處理領口、袖窿及後開口貼邊，另加扣合搭份。','試胚補正後再裁正式布料。']:cfg.steps;
+  $('assembly').innerHTML='<h3>裁剪與組合</h3><ol>'+steps.map(t=>'<li>'+t+'</li>').join('')+'</ol>';update();
+}
+$('garment').addEventListener('change',()=>chooseGarment($('garment').value));
+$('useArmhole').addEventListener('click',()=>{
+  const v=draftMemory.top||Object.fromEntries([...defs,...designDefs,...seamDefs].map(([k,,n])=>[k,n]));
+  const nw=(v.neck+v.neckEase)/(2*(arc(1,1)+arc(1,.3))),sx=v.shoulder/2,sy=-nw*.3+v.drop,w=(Math.max(v.bust,v.waist)+v.ease)/4;
+  const p0=[sx,sy],p1=[sx,sy+(v.depth-sy)*.6],p2=[Math.max(nw,sx-.35),v.depth],p3=[w,v.depth];let len=0;
+  for(let i=0;i<1000;i++){const t=(i+.5)/1000,u=1-t;const dx=3*u*u*(p1[0]-p0[0])+6*u*t*(p2[0]-p1[0])+3*t*t*(p3[0]-p2[0]);const dy=3*u*u*(p1[1]-p0[1])+6*u*t*(p2[1]-p1[1])+3*t*t*(p3[1]-p2[1]);len+=Math.hypot(dx,dy)/1000;}
+  $('armhole').value=(len*2).toFixed(2);update();
+});
 let mode='new';function formula(){const b=Number($('adultB').value),w=Number($('adultW').value);$('methodDescription').textContent=mode==='new'?'第八代原型：先了解胸圍、領寬與腰褶量的關係，再學習完整製圖。':'第七代原型：從基本矩形與領口尺寸認識較早的文化式結構。';if(!$('adultB').value||!$('adultW').value||!Number.isFinite(b)||!Number.isFinite(w)||b<60||b>160||w<40||w>160){$('formulaRows').innerHTML='<tr><td colspan="3">請輸入範圍內的成人胸圍與腰圍。</td></tr>';return;}const rows=mode==='new'?[['原型半身框寬','B / 2 + 6',b/2+6],['胸圍線深度','B / 12 + 13.7',b/12+13.7],['背寬','B / 8 + 7.4',b/8+7.4],['胸寬','B / 8 + 6.2',b/8+6.2],['前領寬','B / 24 + 3.4',b/24+3.4],['總腰褶量（半身）','(B / 2 + 6) − (W / 2 + 3)',(b-w)/2+3]]:[['原型半身框寬','B / 2 + 5',b/2+5],['胸圍線深度','B / 6 + 7',b/6+7],['背寬','B / 6 + 4.5',b/6+4.5],['胸寬','B / 6 + 3',b/6+3],['後領寬','B / 20 + 2.9',b/20+2.9],['前領寬','B / 20 + 2.9 − 0.2',b/20+2.7],['腰寬基準（四分之一）','W / 4 + 1.5',w/4+1.5]];$('formulaRows').innerHTML=rows.map(([a,c,n])=>`<tr><td>${a}</td><td>${c}</td><td>${n<0?'負值：不適用收褶':f(n)+' cm'}</td></tr>`).join('');}
 function selectMode(m){mode=m;document.querySelectorAll('[data-mode]').forEach(t=>{t.setAttribute('aria-selected',String(t.dataset.mode===m));t.tabIndex=t.dataset.mode===m?0:-1;});$('formula-panel').setAttribute('aria-labelledby',m+'-tab');formula();}
-document.querySelectorAll('[data-mode]').forEach(t=>{t.addEventListener('click',()=>selectMode(t.dataset.mode));t.addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();selectMode(e.key==='Home'?'new':e.key==='End'?'old':mode==='new'?'old':'new');$(mode+'-tab').focus();}});});['adultB','adultW'].forEach(id=>$(id).addEventListener('input',formula));update();formula();
-if(document.modelContext?.registerTool){try{Promise.resolve(document.modelContext.registerTool({name:'set_doll_measurements',title:'更新娃娃打版尺寸',description:'以公分更新全部娃娃尺寸並重新繪製實量試版。',inputSchema:{type:'object',properties:Object.fromEntries(allDefs.map(([k,l,,h,min,max])=>[k,{type:'number',minimum:min,maximum:max,description:l}])),required:allDefs.map(d=>d[0]),additionalProperties:false},annotations:{readOnlyHint:false,untrustedContentHint:false},execute(input){if(!input||typeof input!=='object'||Object.keys(input).some(k=>!allDefs.some(d=>d[0]===k)))throw new Error('Invalid input');for(const [k] of allDefs)if(typeof input[k]!=='number')throw new Error('Missing numeric measurement: '+k);validate(input);allDefs.forEach(([k])=>$(k).value=input[k]);update();return {measurements:state,patternReady:!!exportSvg};}})).catch(()=>{});}catch{}}
+document.querySelectorAll('[data-mode]').forEach(t=>{t.addEventListener('click',()=>selectMode(t.dataset.mode));t.addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();selectMode(e.key==='Home'?'new':e.key==='End'?'old':mode==='new'?'old':'new');$(mode+'-tab').focus();}});});['adultB','adultW'].forEach(id=>$(id).addEventListener('input',formula));chooseGarment('top');formula();
+if(document.modelContext?.registerTool){
+  const kinds=['top','skirt','pants','sleeve'];
+  const schema={oneOf:kinds.map(kind=>{const cfg=DollPatterns.registry[kind],ds=kind==='top'?[...defs,...designDefs,...seamDefs]:[...cfg.fields,...cfg.design,...seamDefs];return {type:'object',properties:{garment:{const:kind},measurements:{type:'object',properties:Object.fromEntries(ds.map(([k,l,,,min,max])=>[k,{type:'number',minimum:min,maximum:max,description:l}])),required:ds.map(d=>d[0]),additionalProperties:false}},required:['garment','measurements'],additionalProperties:false};})};
+  try{Promise.resolve(document.modelContext.registerTool({name:'configure_doll_pattern',title:'選擇娃娃版型並設定尺寸',description:'選擇上衣、裙子、褲子或袖子，設定全部公分尺寸和縫份，更新紙樣與列印頁數。',inputSchema:schema,annotations:{readOnlyHint:false,untrustedContentHint:false},execute(input){
+    if(!input||!kinds.includes(input.garment)||!input.measurements)throw new Error('Invalid pattern input');
+    const kind=input.garment,v=input.measurements,cfg=DollPatterns.registry[kind],ds=kind==='top'?[...defs,...designDefs,...seamDefs]:[...cfg.fields,...cfg.design,...seamDefs];
+    if(Object.keys(v).some(k=>!ds.some(d=>d[0]===k)))throw new Error('Unknown measurement');
+    for(const [k,l,,,min,max] of ds)if(typeof v[k]!=='number'||!Number.isFinite(v[k])||v[k]<min||v[k]>max)throw new Error('Invalid '+l);
+    // Validate the complete proposed geometry before touching visible state.
+    const previousGarment=garment,previousDefs=allDefs;
+    try{garment=kind;allDefs=ds;generate(v,'straight');}finally{garment=previousGarment;allDefs=previousDefs;}
+    draftMemory[kind]={...v};chooseGarment(kind);if(!state)throw new Error($('error').textContent);
+    return {garment,measurements:state,patternReady:!!exportSvg,printPages:$('printSheets').children.length};
+  }})).catch(()=>{});}catch{}
+}
