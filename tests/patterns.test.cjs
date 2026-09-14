@@ -28,3 +28,17 @@ assert.throws(()=>P.render('pants',{...sample('pants'),inseam:1}));
 assert.throws(()=>P.render('skirt',{...sample('skirt'),length:2}));
 assert.throws(()=>P.render('sleeve',{...sample('sleeve'),armhole:3}));
 console.log('Passed: skirt proportions, matching pants inseams and cuff, sleeve cap lengths, invalid measurements.');
+vm.runInContext(fs.readFileSync('dist/blocks.js','utf8'),ctx);
+for(const kind of ['skirt_block','pants_block','bunka_old','bunka_new']){
+ const v=sample(kind),r=P.render(kind,v);assert.ok(r.svg.includes('dart-line'),kind+' has darts');
+ near(r.checks.waist,v.waist+v.waistEase);
+ if(kind==='pants_block'){near(r.checks.frontInseam,r.checks.backInseam);near(r.checks.cuff,v.opening);}
+ if(kind.startsWith('bunka')){near(r.checks.frontShoulder,r.checks.backShoulderAfterDart);near(r.checks.frontSide,r.checks.backSide);}
+ assert.ok(!/NaN|Infinity/.test(r.svg));
+}
+for(const bustDart of [0,.2,.5,1]){
+ const v={...sample('bunka_new'),bustDart};const r=P.render('bunka_new',v);near(r.checks.frontSide,r.checks.backSide);
+}
+assert.throws(()=>P.render('pants_block',{...sample('pants_block'),rise:2}));
+assert.throws(()=>P.render('skirt_block',{...sample('skirt_block'),waist:30}));
+console.log('Passed: fitted block waist accounting, matching shoulders/sides/inseams, zero and nonzero bust darts.');
