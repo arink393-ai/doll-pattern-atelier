@@ -15,7 +15,7 @@ const $=id=>document.getElementById(id);let exportSvg='';let state=null;const f=
 function arc(a,b){let sum=0;const steps=240;for(let i=0;i<steps;i++){const t=(i+.5)*Math.PI/(2*steps);sum+=Math.hypot(a*Math.sin(t),b*Math.cos(t))*Math.PI/(2*steps);}return sum;}
 function validate(v){if(garment!=='top'){DollPatterns.validate(garment,v);return;}for(const [key,label,,hint,min,max] of allDefs){if(!Number.isFinite(v[key])||v[key]<min||v[key]>max)throw new Error(`${label}請輸入 ${min}–${max} cm 的數字。`);}if(v.waist>v.bust*1.5)throw new Error('此無胸褶試版不適用腰圍超過胸圍 1.5 倍的身形。');if(v.depth>=v.back)throw new Error('腋深必須小於背長，請確認量測起點。');if(v.length<=v.depth)throw new Error('衣長必須大於腋深，才有完整衣身。');const nw=(v.neck+v.neckEase)/(2*(arc(1,1)+arc(1,.3)));
 if(nw>=v.shoulder/2-.1)throw new Error('領寬已接近肩端，請確認頸圍、肩寬或減少領口鬆量。');if(-nw*.3+v.drop>=v.depth-.2)throw new Error('肩端過低，請確認落肩高度或腋深。');if(nw*.7>=v.depth)throw new Error('領口深度已超過腋下，請確認頸圍及腋深。');if(v.shoulder/2>(v.bust+v.ease)/4)throw new Error('此簡化版需半肩寬不大於四分之一成衣胸圍；請重新量測或改用專門身形版。');return nw;}
-function generate(v,kind){if(garment!=='top')return DollPatterns.render(garment,v);const nw=validate(v),top=-nw*.3,sx=v.shoulder/2,sy=top+v.drop,w=(Math.max(v.bust,v.waist)+v.ease)/4,waist=(v.waist+v.ease)/4,hem=kind==='aline'?Math.max(w,waist)+v.length*.10:Math.max(w,waist);const gap=2.6+v.seam*2,margin=1.8+v.seam,pieceWidth=Math.max(w,hem,sx),offset=pieceWidth+gap,total=offset+pieceWidth+margin*2,height=v.length+4.7+nw*.3+v.seam*2;
+function generate(v,kind){if(garment==='sleeve_linked')return pairedSleeve(v);if(garment!=='top')return DollPatterns.render(garment,v);const nw=validate(v),top=-nw*.3,sx=v.shoulder/2,sy=top+v.drop,w=(Math.max(v.bust,v.waist)+v.ease)/4,waist=(v.waist+v.ease)/4,hem=kind==='aline'?Math.max(w,waist)+v.length*.10:Math.max(w,waist);const gap=2.6+v.seam*2,margin=1.8+v.seam,pieceWidth=Math.max(w,hem,sx),offset=pieceWidth+gap,total=offset+pieceWidth+margin*2,height=v.length+4.7+nw*.3+v.seam*2;
 function piece(front,x){const start=front?nw+top:0;
 const neckPath=front?`M 0 ${start} A ${nw} ${nw} 0 0 0 ${nw} ${top}`:`M 0 0 A ${nw} ${-top} 0 0 0 ${nw} ${top}`;
 const path=`${neckPath} L ${sx} ${sy} C ${sx} ${sy+(v.depth-sy)*.6} ${Math.max(nw,sx-.35)} ${v.depth} ${w} ${v.depth} L ${hem} ${v.length} L 0 ${v.length} Z`;
@@ -25,7 +25,7 @@ s+=`<text x="${w*.48}" y="${v.depth+(v.length-v.depth)*.45}" text-anchor="middle
 let contents=`<title>娃娃無袖上衣實量試版，縫份 ${f(v.seam)} cm</title><desc>胸圍 ${v.bust}，頸圍 ${v.neck}，衣長 ${v.length} 公分。獨立簡化試版，非完整文化原型。後中心全開，需另加搭份與貼邊。</desc><g font-family="sans-serif">${piece(true,margin)}${piece(false,margin+offset)}<path d="M ${margin} ${height-1.4} h 2 m -2 -.1 v .2 m 2 -.2 v .2" fill="none" stroke="#18283f" stroke-width=".025"/><text x="${margin}" y="${height-.9}" font-size=".23" fill="#18283f">2 cm 校正線 · 列印選 100%，勿縮放</text><text x="${margin}" y="${height-.45}" font-size=".21" fill="#626f80">縫份 ${f(v.seam)} cm／布折不加。搭份與貼邊另加。先試胚再裁布。</text></g>`;
 return {svg:`<svg xmlns="http://www.w3.org/2000/svg" width="${total}cm" height="${height}cm" viewBox="0 0 ${total} ${height}" role="img" aria-label="前後片即時版型">${contents}</svg>`,chest:w*4,hem:hem*4,neck:v.neck+v.neckEase};}
 function read(){return Object.fromEntries(allDefs.map(([key])=>[key,$(key).value.trim()===''?NaN:Number($(key).value)]));}
-function update(){try{const v=read();const result=generate(v,$('silhouette').value);$('error').hidden=true;$('error').textContent='';$('paper').innerHTML=result.svg;$('paper').style.opacity=1;addSeamAllowance(v.seam);exportSvg=$('paper').querySelector('svg').outerHTML;state=v;buildPrintSheets();$('download').disabled=false;$('printPreview').disabled=false;$('seamSummary').textContent=`縫份 ${f(v.seam)} cm，標示布折的邊不加。列印後先核對校正線，再做胚衣試穿。`;draftMemory[garment]={...v};if(['top','bunka_old','bunka_new'].includes(garment))lastUpper=garment;$('results').innerHTML=(result.metrics||[['成衣胸圍',result.chest],['目標領口周長',result.neck],['下襬整圈',result.hem]]).map(([t,n])=>`<div><small>${t}</small><b>${f(n)} <em>cm</em></b></div>`).join('');}catch(e){$('error').textContent=e.message;$('error').hidden=false;$('paper').innerHTML='<p class="muted">修正尺寸後，版型會重新顯示。</p>';$('results').innerHTML='';$('download').disabled=true;$('printPreview').disabled=true;exportSvg='';state=null;$('printSheets').innerHTML='<p>尺寸無效，請關閉列印並修正尺寸。</p>';$('seamSummary').textContent='請先修正尺寸。';}}
+function update(){try{const v=read();const result=generate(v,$('silhouette').value);$('error').hidden=true;$('error').textContent='';$('paper').innerHTML=result.svg;$('paper').style.opacity=1;addPatternMarks(result);addSeamAllowance(v.seam);exportSvg=$('paper').querySelector('svg').outerHTML;state=v;$('makeSleeve').disabled=false;buildPrintSheets();$('download').disabled=false;$('printPreview').disabled=false;$('seamSummary').textContent=`縫份 ${f(v.seam)} cm，標示布折的邊不加。列印後先核對校正線，再做胚衣試穿。`;draftMemory[garment]={...v};if(['top','bunka_old','bunka_new'].includes(garment))lastUpper=garment;$('results').innerHTML=(result.metrics||[['成衣胸圍',result.chest],['目標領口周長',result.neck],['下襬整圈',result.hem]]).map(([t,n])=>`<div><small>${t}</small><b>${f(n)} <em>cm</em></b></div>`).join('');}catch(e){$('makeSleeve').disabled=true;$('error').textContent=e.message;$('error').hidden=false;$('paper').innerHTML='<p class="muted">修正尺寸後，版型會重新顯示。</p>';$('results').innerHTML='';$('download').disabled=true;$('printPreview').disabled=true;exportSvg='';state=null;$('printSheets').innerHTML='<p>尺寸無效，請關閉列印並修正尺寸。</p>';$('seamSummary').textContent='請先修正尺寸。';}}
 $('measurements').addEventListener('input',update);$('measurements').addEventListener('submit',e=>e.preventDefault());$('reset').addEventListener('click',()=>{allDefs.forEach(([key,,val])=>$(key).value=val);$('silhouette').value='straight';update();});$('download').addEventListener('click',()=>{if(!exportSvg)return;const url=URL.createObjectURL(new Blob([exportSvg],{type:'image/svg+xml;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`小衣研究室-${patternName()}-縫份${state.seam}cm.svg`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);});
 // Offset in pattern units (cm), never by scaling the garment. Integer clipping
 // removes self-intersections and clips the front allowance at the fabric fold.
@@ -64,7 +64,7 @@ function buildPrintSheets(){
     sheets+=`<section class="print-sheet"><div class="print-header">${patternName()} · 第 ${page} / ${total} 頁 · 第 ${row+1} 行／第 ${col+1} 列 · 縫份 ${f(state.seam)} cm</div><div class="print-tile">${tile.outerHTML}</div><div class="print-footer"><span class="calibration">5 cm 校正線</span><span>100% · 相鄰頁重疊 1 cm · 布折線不加縫份</span></div></section>`;
     map+=`<span>${row+1} 行 ${col+1} 列<small>第 ${page} 頁</small></span>`;
   }
-  $('printSheets').innerHTML=sheets;$('tileMap').innerHTML=map;
+  if($('includeGuide').checked){sheets+=PatternGuide.printPage();$('printInfo').textContent+=' 另附 1 張記號說明。';}$('printSheets').innerHTML=sheets;$('tileMap').innerHTML=map;
 }
 $('printPreview').addEventListener('click',()=>{if(exportSvg){buildPrintSheets();$('printDialog').showModal();}});
 $('closePrint').addEventListener('click',()=>$('printDialog').close());
@@ -72,7 +72,7 @@ $('printNow').addEventListener('click',()=>{if(!exportSvg)return;$('printDialog'
 window.addEventListener('beforeprint',()=>{if(exportSvg)buildPrintSheets();});
 function patternName(){return garment==='top'?'基本上衣':DollPatterns.registry[garment].title;}
 function chooseGarment(next){
-  garment=next;$('garment').value=next;
+  garment=next;$('garment').value=next;$('makeSleeve').hidden=!['top','bunka_new','bunka_old'].includes(next);$('linkedSettings').hidden=next!=='sleeve_linked';$('linkedInfo').textContent='來源：'+(lastUpper==='top'?'基本上衣':DollPatterns.registry[lastUpper].title)+'；修改上衣後，袖子會依最新有效尺寸重新計算。';
   const cfg=DollPatterns.registry[next];allDefs=next==='top'?[...defs,...designDefs,...seamDefs]:[...cfg.fields,...cfg.design,...seamDefs];
   renderFields(next==='top'?defs:cfg.fields,'fields');renderFields(next==='top'?designDefs:cfg.design,'designFields');renderFields(seamDefs,'seamFields');
   if(draftMemory[next])allDefs.forEach(([k])=>$(k).value=draftMemory[next][k]);
@@ -80,6 +80,26 @@ function chooseGarment(next){
   const steps=next==='top'?['前片對折裁一片，後片鏡像裁兩片；先接合肩線與側縫。','處理領口、袖窿及後開口貼邊，另加扣合搭份。','試胚補正後再裁正式布料。']:cfg.steps;
   $('assembly').innerHTML='<h3>裁剪與組合</h3><ol>'+steps.map(t=>'<li>'+t+'</li>').join('')+'</ol>';update();
 }
+
+$('makeSleeve').addEventListener('click',()=>chooseGarment('sleeve_linked'));
+$('editSource').addEventListener('click',()=>chooseGarment(lastUpper));
+$('includeGuide').addEventListener('change',()=>{if(exportSvg)buildPrintSheets();});
+function pairedSleeve(v){
+ const source=draftMemory[lastUpper];if(!source)throw new Error('請先設定有效的上衣尺寸。');
+ const g=LinkedSleeves.geometry(lastUpper,source),result=LinkedSleeves.build(g,v),previous=garment;
+ let upper;try{garment=lastUpper;upper=generate({...source,seam:v.seam},$('silhouette').value);}finally{garment=previous;}
+ const parse=s=>new DOMParser().parseFromString(s,'image/svg+xml').documentElement,a=parse(upper.svg),b=parse(result.svg),av=a.getAttribute('viewBox').split(' ').map(Number),bv=b.getAttribute('viewBox').split(' ').map(Number),w=Math.max(av[2],bv[2]),h=av[3]+bv[3];
+ result.svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${w}cm" height="${h}cm" viewBox="0 0 ${w} ${h}" role="img" aria-label="上衣及配套袖子"><g data-panel="upper">${a.innerHTML}</g><g data-panel="sleeve" transform="translate(0,${av[3]})">${b.innerHTML}</g></svg>`;result.upperGeometry=g;return result;
+}
+function addPatternMarks(result){
+ const svg=$('paper').querySelector('svg'),ns='http://www.w3.org/2000/svg';
+ const add=(parent,markup)=>{const g=document.createElementNS(ns,'g');g.setAttribute('class','pattern-mark');g.innerHTML=markup;parent.append(g);};
+ for(const path of svg.querySelectorAll('.seam-line')){const b=path.getBBox(),x=b.x+b.width*.65,y=b.y+b.height*.62,L=Math.min(1,b.height*.2);add(path.parentNode,`<g class="grain-symbol" fill="none" stroke="#243953" stroke-width=".025"><path d="M ${x} ${y-L/2} v ${L} m -.1 -.16 l .1 .16 .1 -.16 M ${x-.1} ${y-L/2+.16} l .1 -.16 .1 .16"/></g>`);if(path.dataset.front==='true')add(path.parentNode,`<text class="fold-symbol" x=".08" y="${y}" font-size=".2" fill="#243953">布折 ↕</text>`);}
+ const upper=['top','bunka_new','bunka_old'].includes(garment),g=result.upperGeometry||(upper?LinkedSleeves.geometry(garment,read()):null);if(!g)return;
+ const paths=[...(result.upperGeometry?svg.querySelector('[data-panel="upper"]'):svg).querySelectorAll('.seam-line')];
+ paths.forEach((path,i)=>{const index=g.type==='top'?i:1-i,c=g.curves[index],p=LinkedSleeves.point(c,g.ts[index]),label=index===0?'F':'B',ticks=index===0?[0]:[-.06,.06];add(path.parentNode,`<g class="match-symbol" data-match="${label}" fill="none" stroke="#0e6279" stroke-width=".03">${ticks.map(o=>`<path d="M ${p[0]-.1} ${p[1]+o} h .2"/>`).join('')}</g><text x="${p[0]+.18}" y="${p[1]}" font-size=".2">${label}</text><text x="${c[0][0]+.1}" y="${c[0][1]-.1}" font-size=".2">S</text>`);});
+}
+
 $('garment').addEventListener('change',()=>chooseGarment($('garment').value));
 $('useArmhole').addEventListener('click',()=>{
   const v=draftMemory[lastUpper]||Object.fromEntries([...defs,...designDefs,...seamDefs].map(([k,,n])=>[k,n]));
