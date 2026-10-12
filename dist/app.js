@@ -77,7 +77,7 @@ function chooseGarment(next){
   const cfg=DollPatterns.registry[next];allDefs=next==='top'?[...defs,...designDefs,...seamDefs]:[...cfg.fields,...cfg.design,...seamDefs];
   renderFields(next==='top'?defs:cfg.fields,'fields');renderFields(next==='top'?designDefs:cfg.design,'designFields');renderFields(seamDefs,'seamFields');
   if(draftMemory[next])allDefs.forEach(([k])=>$(k).value=draftMemory[next][k]);
-  $('topOptions').hidden=next!=='top';$('useArmhole').hidden=next!=='sleeve';$('patternTitle').textContent=patternName();$('patternNote').textContent=next==='top'?topNote:cfg.note;
+  $('topOptions').hidden=next!=='top';$('useArmhole').hidden=next!=='sleeve';const _nuiOpt=$('nuiOptions');if(_nuiOpt)_nuiOpt.hidden=!/^nui_/.test(next);$('patternTitle').textContent=patternName();$('patternNote').textContent=next==='top'?topNote:cfg.note;
   const steps=next==='top'?['前片對折裁一片，後片鏡像裁兩片；先接合肩線與側縫。','處理領口、袖窿及後開口貼邊，另加扣合搭份。','試胚補正後再裁正式布料。']:cfg.steps;
   $('assembly').innerHTML='<h3>裁剪與組合</h3><ol>'+steps.map(t=>'<li>'+t+'</li>').join('')+'</ol>';update();
 }
