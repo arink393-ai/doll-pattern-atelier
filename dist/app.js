@@ -38,7 +38,7 @@ function addSeamAllowance(cm){
     for(let i=0;i<count;i++){const p=path.getPointAtLength(i*length/count);points.push({X:Math.round(p.x*S),Y:Math.round(p.y*S)});}
     if(!C.Clipper.Orientation(points))points.reverse();
     const offset=new C.ClipperOffset(2,.002*S),polygons=[];
-    offset.AddPath(points,C.JoinType.jtMiter,C.EndType.etClosedPolygon);offset.Execute(polygons,cm*S);
+    offset.AddPath(points,C.JoinType.jtMiter,C.EndType.etClosedPolygon);offset.Execute(polygons,(path.dataset.hole==='true'?-cm:cm)*S);
     let result=polygons;
     if(path.dataset.front==='true'){
       const clip=new C.Clipper();clip.AddPaths(polygons,C.PolyType.ptSubject,true);
@@ -95,7 +95,7 @@ function pairedSleeve(v){
 function addPatternMarks(result){
  const svg=$('paper').querySelector('svg'),ns='http://www.w3.org/2000/svg';
  const add=(parent,markup)=>{const g=document.createElementNS(ns,'g');g.setAttribute('class','pattern-mark');g.innerHTML=markup;parent.append(g);};
- for(const path of svg.querySelectorAll('.seam-line')){const b=path.getBBox(),x=b.x+b.width*.65,y=b.y+b.height*.62,L=Math.min(1,b.height*.2);add(path.parentNode,`<g class="grain-symbol" fill="none" stroke="#243953" stroke-width=".025"><path d="M ${x} ${y-L/2} v ${L} m -.1 -.16 l .1 .16 .1 -.16 M ${x-.1} ${y-L/2+.16} l .1 -.16 .1 .16"/></g>`);if(path.dataset.front==='true')add(path.parentNode,`<text class="fold-symbol" x=".08" y="${y}" font-size=".2" fill="#243953">布折 ↕</text>`);}
+ for(const path of svg.querySelectorAll('.seam-line')){if(path.dataset.hole==='true'||path.dataset.ring==='true')continue;const b=path.getBBox(),x=b.x+b.width*.65,y=b.y+b.height*.62,L=Math.min(1,b.height*.2);add(path.parentNode,`<g class="grain-symbol" fill="none" stroke="#243953" stroke-width=".025"><path d="M ${x} ${y-L/2} v ${L} m -.1 -.16 l .1 .16 .1 -.16 M ${x-.1} ${y-L/2+.16} l .1 -.16 .1 .16"/></g>`);if(path.dataset.front==='true')add(path.parentNode,`<text class="fold-symbol" x=".08" y="${y}" font-size=".2" fill="#243953">布折 ↕</text>`);}
  const upper=['top','bunka_new','bunka_old'].includes(garment),g=result.upperGeometry||(upper?LinkedSleeves.geometry(garment,read()):null);if(!g)return;
  const paths=[...(result.upperGeometry?svg.querySelector('[data-panel="upper"]'):svg).querySelectorAll('.seam-line')];
  paths.forEach((path,i)=>{const index=g.type==='top'?i:1-i,c=g.curves[index],p=LinkedSleeves.point(c,g.ts[index]),label=index===0?'F':'B',ticks=index===0?[0]:[-.06,.06];add(path.parentNode,`<g class="match-symbol" data-match="${label}" fill="none" stroke="#0e6279" stroke-width=".03">${ticks.map(o=>`<path d="M ${p[0]-.1} ${p[1]+o} h .2"/>`).join('')}</g><text x="${p[0]+.18}" y="${p[1]}" font-size=".2">${label}</text><text x="${c[0][0]+.1}" y="${c[0][1]-.1}" font-size=".2">S</text>`);});
